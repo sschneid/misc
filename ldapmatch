@@ -14,10 +14,10 @@ if ($#ARGV < 1) {
 	exit;
 }
 
-my $ldap = Net::LDAP->new( "ldaps://ldap.mc.vanderbilt.edu:636" );
+my $ldap = Net::LDAP->new( "ldaps://ldap.company.com:636" );
 
 my $mesg = $ldap->search(
-    base   => 'ou=Hosts,dc=mc,dc=vanderbilt,dc=edu',
+    base   => 'ou=Hosts,dc=company,dc=com',
     filter => "($ARGV[0]=*$ARGV[1]*)"
 );
 
