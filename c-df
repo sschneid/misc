@@ -1,0 +1,72 @@
+#!/usr/bin/perl -w
+
+# c-df - Colorized 'df' output
+# 09/13/2006, scott@loserfish.org
+
+use strict;
+
+
+
+my ( $df );
+
+open( DF, "/bin/df @ARGV |" );
+
+while ( <DF> ) {
+    if ( /^(.+?)\s+(.+?)\s+(.+?)\s+(.+?)\s+(.+?)\s+(.+?)$/ ) {
+        push @{ $df }, [ $1, $2, $3, $4, $5, $6 ];
+    }
+    else {
+        push @{ $df }, [ $_ ];
+    }
+}
+
+
+
+my ( $st );
+
+my $r = 0;
+
+foreach my $rn ( @{ $df } ) {
+    my $c = 0;
+
+    foreach ( @{ $rn } ) {
+        if ( /(\d+)%/ ) {
+            if ( ( $1 < 50 ) )                { $_ = "[1;32m$_[0m"; }
+            if ( ( $1 > 50 ) && ( $1 < 85 ) ) { $_ = "[1;33m$_[0m"; }
+            if ( ( $1 > 85 ) )                { $_ = "[1;31m$_[0m"; }
+        }
+        elsif ( $r == 0 ) { $_ = "[1;37m$_[0m"; }
+        else              { $_ = "[0;00m$_[0m"; }
+
+        next if $_ eq ${ $rn }[-1];
+
+        if ( $st->{ $c } ) {
+            $st->{ $c } = length( $_ ) if length( $_ ) > $st->{ $c };
+        }
+        else {
+            $st->{ $c } = length( $_ );
+        }
+
+        $c++;
+    }
+
+    $r++;
+}
+
+
+
+my $pf = "%-$st->{'0'}s   "
+        . "%$st->{'1'}s   "
+        . "%$st->{'2'}s   "
+        . "%$st->{'3'}s   "
+        . "%$st->{'4'}s   "
+        . "%-s\n";
+
+foreach my $rn ( @{ $df } ) {
+    if ( @{ $rn } > 1 ) {
+        printf "$pf", @{ $rn };
+    }
+    else {
+        print @{ $rn };
+    }
+}
