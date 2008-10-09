@@ -1,0 +1,173 @@
+#!/usr/bin/perl -w
+
+# hiya
+#
+# Install (from YUM) specified packages.
+#
+# 'hiya' is a cute acronym for Hacked Install for YUM on AIX.
+#
+# $Id: hiya,v 1.8 2008/03/31 20:26:20 schneis Exp $
+
+package hiya;
+
+use LWP::UserAgent;
+use strict;
+
+
+
+# Initialize
+my $self = hiya->init();
+
+# Determine dependencies, attempt to install packages
+foreach my $pkg ( @ARGV ) {
+    print "[$pkg]\n";
+
+    # Check for repository existance
+    unless ( $self->{'yum'}->{$pkg} ) {
+        print "\tnot found in YUM repository\n";
+        next;
+    }
+
+    # Work with the newest release, unless otherwise specified
+    my @r = sort {
+        ( $a =~ /(\d+\.\d+)/ ) <=> ( $b =~ /(\d+\.\d+)/ )
+    } keys %{$self->{'yum'}->{$pkg}};
+    my $v = $r[-1];
+
+    # Grab the RPM
+    my $rpm = '/tmp/hiya.' . $pkg . '-' . $v . '.rpm';
+    my $r = $self->{'agent'}->get(
+        $self->{'config'}->{'source'}
+            . $self->{'yum'}->{$pkg}->{$v}->{'src'},
+        ':content_file' => $rpm
+    );
+
+    # Move on to the next if download unsuccessful
+    unless ( $r->is_success() ) {
+        print $r->status_line;
+        next;
+    }
+
+    print "\tdownloaded\n";
+
+    next unless $self->install( mode => 'test', rpm => $rpm );
+    next unless $self->install( mode => 'real', rpm => $rpm );
+
+    print "\tinstallation successful\n\n";
+}
+
+
+
+=pod
+
+=head1 NAME
+
+hiya - Install (from YUM) specified packages
+
+=head1 AUTHOR
+
+Scott Schneider <scott.schneider@vanderbilt.edu>
+
+=cut
+
+
+
+sub init {
+    my $self = bless {}, shift;
+
+    # Read configuration file
+    $self->{'config'} = $self->readConfig(
+        configFile => '/etc/hiya.conf'
+    );
+
+    # Add a trailing slash if omitted
+    $self->{'config'}->{'source'} .= '/'
+        unless $self->{'config'}->{'source'} =~ /\/$/;
+
+    $self->{'agent'} = LWP::UserAgent->new(
+        timeout => $self->{'config'}->{'timeout'}
+    );
+
+    $self->{'yum'} = $self->headerParse(
+        $self->{'agent'}->get(
+            $self->{'config'}->{'source'} . '/headers/header.info'
+        )->content()
+    );
+
+    return $self;
+}
+
+sub headerParse {
+    my $self    = shift;
+    my $headers = shift;
+
+    my ( $pkg );
+
+    foreach ( split /\n/, $headers ) {
+        if ( /^0:(.+?)-(\d.+?)=(.+?)$/ ) { $pkg->{$1}->{$2}->{'src'} = $3 }
+    }
+
+    return $pkg;
+};
+
+sub install {
+    my $self = shift;
+
+    my ( $arg );
+    %{$arg} = @_;
+
+    for ( $arg->{'mode'} ) {
+        /test/ && do {
+            print "\ttesting\n";
+            $arg->{'flags'} = '-U --test'
+        };
+
+        /real/ && do {
+            print "\tinstalling\n";
+            $arg->{'flags'} = '-Uvh'
+        };
+    }
+
+    my $r = system(
+        "$self->{'config'}->{'rpm'} "
+      . "$arg->{'flags'} "
+      . "$arg->{'rpm'} "
+      . '> /dev/null 2>&1'
+    );
+
+    # Return if error
+    for ( $r ) {
+        /256/ && do {
+            print "\talready installed\n\n";
+            return 0;
+        };
+    }
+
+    return 1; 
+}
+
+sub readConfig {
+    my $self = shift;
+
+    my ( $arg );
+    %{$arg} = @_;
+
+    my ( $config );
+
+    $arg->{'configFile'} || return(0);
+
+    open configFile, $arg->{'configFile'} || return( 0 );
+    while ( <configFile> ) {
+        $config->{$1} = $2 if /^\$(.+?):.+?"(.+?)"/;
+        ( @{$config->{$1}} ) = split / /, $2 if /^\@(.+?):.+?"(.+?)"/;
+    }
+    close configFile;
+
+    map { $config->{$_} =~ s/\$([\w.]+)/$config->{$1}/g; } keys %{$config};
+
+    return $config;
+}
+
+
+
+1;

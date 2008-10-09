@@ -1,0 +1,48 @@
+#! /usr/bin/perl
+
+use File::Find;
+use strict;
+
+my ( $day, @list, $test );
+
+if ( $ARGV[0] && $ARGV[0] != 1 ) {
+    $day = $ARGV[0];
+}
+else {
+    $day = 2;
+}
+
+chdir( '/tmp/' ) || die "$!";
+
+unless ( chroot( '/tmp/' ) ) {
+    die "You must be root to run this script.\n"
+};
+
+# Files
+find(
+    sub {
+        my ( $dev, $ino, $mode, $nlink, $uid, $gid );
+            
+        ( ( $dev, $ino, $mode, $nlink, $uid, $gid ) = lstat( $_ ) ) &&
+        ( -f _ ) && 
+        ( int( -M _ ) > $day ) &&
+        ( ! /^\.X.*lock$/ ) &&
+        ( unlink( $_ ) ) &&
+            push @list, $File::Find::name;
+    }, '/'
+);
+
+# Directories
+find (
+    sub {
+        my ( $dev, $ino, $mode, $nlink, $uid, $gid );
+
+        ( /^\..*-unix$/ ) && ( $File::Find::prune = 1 ) ||
+        ( ($dev, $ino, $mode, $nlink, $uid, $gid ) = lstat( $_ ) ) &&
+        ( -d _ && ( $nlink == 2 ) ) &&
+        ( ! /^lost\+found$/ ) &&
+        ( rmdir( $_ ) )&&
+            push @list, "$File::Find::name/";
+    }, '/'
+);
+

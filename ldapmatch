@@ -1,0 +1,30 @@
+#!/usr/bin/perl
+
+# Usage: ldapmatch <search attribute> <search string>
+# The script searches ldap for <search string> in the ldap attribute, <search attribute>
+# and prints cn (host name in this case) for all entries found that match the 
+# <search string>.
+
+use Net::LDAP;
+use strict;
+
+if ($#ARGV < 1) {
+	print "Usage: $0 <search attribute> <search string>\n";
+	print "   Ex: $0 cfclasses linux\n";
+	exit;
+}
+
+my $ldap = Net::LDAP->new( "ldaps://ldap.mc.vanderbilt.edu:636" );
+
+my $mesg = $ldap->search(
+    base   => 'ou=Hosts,dc=mc,dc=vanderbilt,dc=edu',
+    filter => "($ARGV[0]=*$ARGV[1]*)"
+);
+
+my ( @hosts );
+
+foreach my $entry ( $mesg->entries() ) {
+    push @hosts, $entry->get_value( 'cn' );
+}
+
+foreach my $host ( sort @hosts ) { print "$host\n"; }

@@ -1,0 +1,51 @@
+#!/usr/bin/perl -w
+
+# check_disk_err
+#
+# Report on disk errors seen in the AIX error report.  This script is meant to
+# be run daily out of root's crontab.
+#
+# This is a rewrite of erp.sh that eliminated false reportings of SAN storage.
+#
+# $Id: check_disk_err,v 1.1 2007/05/16 19:41:02 schneis Exp $
+
+use POSIX qw( strftime );
+use Sys::Hostname;
+
+use strict;
+
+
+
+my ( $notify, @disks, $report );
+
+# Define pager/email addresses
+$notify->{'page'} = 'mid.range.unix.pager@email.mc.vanderbilt.edu';
+$notify->{'mail'} = 'mid.range.unix@email.mc.vanderbilt.edu';
+
+# Get a list of (local) SCSI disks
+open( F, '/usr/sbin/lsdev -Cc disk |' );
+while ( <F> ) { push @disks, $1 if /(hdisk.+?)\s.*SCSI/; }
+close( F );
+
+# Parse the error report for (local) disk errors
+my $date = strftime "%m%d%H%M%y", localtime( time() - 86400 );
+open( F, "/usr/bin/errpt -s $date |" );
+while( <F> ) { foreach my $d ( @disks ) { $report .= $_ if /\s$d\s/; } }
+close( F );
+
+if ( $report ) {
+    my $host = hostname();
+
+    $report = "$host disk errors detected:\n\n" . $report;
+
+    # Send page
+    system( qq( echo "$report" | /usr/bin/mail "$notify->{'page'}" ) );
+
+    # Send email
+    system(
+        qq( echo "$report" | )
+      . qq( /usr/bin/mail -s "Short listing error report for $host" )
+      . qq( "$notify->{'mail'}" )
+    );
+}
+

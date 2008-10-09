@@ -1,0 +1,169 @@
+#!/usr/local/bin/perl -w
+
+package cfcluster;
+
+# cfcluster
+#
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation; either version 2 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+# details.
+
+our $VERSION = '$Id: cfcluster,v 1.4 2008/07/07 18:43:01 schneis Exp $';
+
+
+
+use Getopt::Long;
+
+use strict;
+
+
+# Initialize
+my $self = cfcluster->init();
+
+foreach my $pkg ( @ARGV ) {
+    if ( $self->{'var'}->{'autorun'} ) {
+        unless ( $self->{'pkg'}->{$pkg}->{'autorun'} eq 'enabled' ) {
+            open( F, "/usr/local/cmcluster/bin/cmmodpkg -e $pkg |" );
+            while( <F> ) {
+                if ( /Completed successfully/ ) {
+                    print qq(Autorun enabled for package $pkg.\n);
+                }
+                else {
+                    print qq(Enabling autorun on package $pkg failed.\n);
+                }
+            }
+            close( F );
+        }
+    }
+}
+
+
+
+=pod
+
+=head1 NAME
+
+cfcluster - Cluster management via Cfengine
+
+=head1 SYNOPSIS
+
+cfcluster [option]... <package>
+
+=over 4
+
+=item --autorun
+
+Enable autorun for the specified package(s).
+
+=item About <package>
+
+Aside from individual package names, there are two special keywords
+allowed as package specification:
+
+=over 4
+
+=item all
+
+All packages defined in the cluster.
+
+=item running
+
+All packages CURRENTLY RUNNING in the cluster.
+
+=back
+
+=back
+
+=head1 EXAMPLES
+
+=item cfcluster --autorun running
+
+Make sure all running packages have AUTO_RUN enabled.
+
+=head1 AUTHOR
+
+Scott Schneider <scott.schneider@vanderbilt.edu>
+
+=cut
+
+
+
+my ( $pkg );
+
+sub init {
+    my $self = bless {}, shift;
+
+    $self->GetOptions(
+        'autorun' => \$self->{'var'}->{'autorun'},
+        'help'    => \$self->{'var'}->{'help'}
+    );
+
+    # Make sure all necessary params are specified
+    unless ( $ARGV[0] ) { $self->{'var'}->{'help'} = 1; }
+
+    # Display help/usage
+    if ( $self->{'var'}->{'help'} ) {
+        print qq(Type 'perldoc cfcluster for more options and information.\n\n);
+        print qq(USAGE: $0 [option]... <package>\n);
+        exit( 1 );
+    }
+
+    # Display the (CVS) version
+    if ( $self->{'var'}->{'version'} ) {
+        print qq($1\n) if $VERSION =~ /\,v\s+(.+?)\s+/;
+        exit( 0 );
+    }
+
+    unless ( -e '/usr/local/cmcluster/bin/cmviewcl' ) {
+        print qq(Error: /usr/local/cmcluster/bin/cmviewcl not found.\n);
+        exit( 1 );
+    }
+
+    unless ( -e '/usr/local/cmcluster/bin/cmmodpkg' ) {
+        print qq(Error: /usr/local/cmcluster/bin/cmmodpkg not found.\n);
+        exit( 1 );
+    }
+
+    # Grab the package information from cmviewcl
+    if ( $ARGV[0] eq 'all' || 'running' ) {
+        open( F, '/usr/local/cmcluster/bin/cmviewcl |' );
+    } else {
+        open( F, "/usr/local/cmcluster/bin/cmviewcl -p $ARGV[0] |" );
+    }
+    while ( <F> ) {
+        if ( /\s+(.+?)\s+(\w+)\s+(\w+)\s+(\w+)\s+(\w+)/ && !/PACKAGE/ ) {
+            $self->{'pkg'}->{$1} = {
+                status  => $2,
+                state   => $3,
+                autorun => $4,
+                node    => $5
+            };
+        }
+    }
+    close( F );
+
+    if ( $ARGV[0] eq 'all' ) {
+        @ARGV = keys %{$self->{'pkg'}};
+    }
+
+    if ( $ARGV[0] eq 'running' ) {
+        undef @ARGV;
+        map {
+            if ( $self->{'pkg'}->{$_}->{'state'} eq 'running' ) {
+                push @ARGV, $_;
+            }
+        } keys %{$self->{'pkg'}};
+    }
+
+    return $self;
+}
+
+
+
+1;
