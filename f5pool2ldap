@@ -1,0 +1,101 @@
+#!/usr/bin/perl
+
+# f5pool2ldap, Dump F5 pools containing a specified host into LDAP
+#
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation; either version 2 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+# details.
+
+use MIME::Base64;
+use Net::LDAP;
+use SOAP::Lite;
+
+use Socket;
+
+use strict;
+
+my ( $pools );
+
+# Get F5 username/password from /etc/f5data.conf
+my ( $config );
+die "Could not open configfile.  Be you root?\n"
+    unless open configFile, '/etc/f5data.conf';
+while ( <configFile> ) {
+    $config->{'f5'}->{$1} = $2 if /^\$(.+?):.+?"(.+?)"/;
+    ( @{$config->{'f5'}->{$1}} ) = split / /, $2 if /^\@(.+?):.+?"(.+?)"/;
+}
+close configFile;
+map { $config->{$_} =~ s/\$(\w+)/$config->{$1}/g; } keys %{$config};
+
+# Query each device for pools and associated nodes
+foreach my $server ( qw/
+    bigip1.company.com
+    bigip2.company.com
+/ ) {
+    # Initialize and authenticate SOAP::Lite connections
+    my ( $soap );
+
+    $soap->{'pool'} = SOAP::Lite
+        ->uri  ( 'urn:iControl:LocalLB/Pool' )
+        ->proxy( 'https://' . $server . ':443/iControl/iControlPortal.cgi' );
+    $soap->{'pool'}->transport->http_request->header(
+        'Authorization' => 'Basic ' . MIME::Base64::encode(
+            $config->{'f5'}->{'username'} . ':' . $config->{'f5'}->{'password'}, ''
+        )
+    );
+
+    foreach my $pool ( @{$soap->{'pool'}->get_list->result()} ) {
+        foreach ( @{${$soap->{'pool'}->get_member(
+            SOAP::Data->name( pool_names => [ $pool ] )
+        )->result()}[0]} ) {
+            push @{$pools->{$_->{'address'}}}, $pool;
+        }
+    }
+}
+
+# Get LDAP username/password from /etc/pfacter.conf
+die "Could not open configfile.  Be you root?\n"
+    unless open configFile, '/etc/pfacter.conf';
+while ( <configFile> ) {
+    $config->{'ldap'}->{$1} = $2 if /^\$(.+?):.+?"(.+?)"/;
+    ( @{$config->{'ldap'}->{$1}} ) = split / /, $2 if /^\@(.+?):.+?"(.+?)"/;
+}
+close configFile;
+
+$config->{'ldap'}->{'server'} = $config->{'ldap'}->{'server'}[0]
+    if ref $config->{'ldap'}->{'server'};
+
+my $ldap = Net::LDAP->new( 'ldaps://' . $config->{'ldap'}->{'server'} . ':636' );
+my $error = $ldap->bind(
+    "uid=$config->{'ldap'}->{'username'},ou=People,dc=company,dc=com",
+    password => $config->{'ldap'}->{'password'}
+);
+
+foreach my $ip ( keys %{$pools} ) {
+    my $host = gethostbyaddr( inet_aton( $ip ), AF_INET );
+    if ( $host =~ /^(.+?)\..*$/ ) { $host = $1; }
+
+    my $exists = $ldap->search(
+        base => 'ou=Hosts,dc=company,dc=com',
+        filter => 'cn=' . $host
+    );
+
+    if ( $exists->all_entries() > 0 ) {
+        my $error = $ldap->modify(
+            'cn=' . $host . ',ou=Hosts,dc=company,dc=com',
+            replace => { f5Pool => join ' ', @{$pools->{$ip}} }
+        );
+
+        if ( $error->{'errorMessage'} ) {
+            print $error->{'errorMessage'};
+            exit( 1 );
+        }
+    }
+}
+
