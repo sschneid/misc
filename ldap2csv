@@ -1,0 +1,167 @@
+#!/usr/bin/perl
+
+package ldap2csv;
+
+# ldap2csv, Convert LDAP query results to CSV-formatted output.
+#
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation; either version 2 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+# details.
+
+our $VERSION = '$Id';
+
+
+
+use Getopt::Long;
+use Net::LDAP;
+
+use strict;
+
+
+
+# Initialize the package
+my $self = ldap2csv->init();
+
+my $hosts = $self->fetch(
+    source => $self->{'var'}->{'base'},
+    filter => "($ARGV[0]=*)"
+);
+
+print join( ',', @ARGV ) . "\n";
+
+map {
+    my ( @ln );
+
+    foreach  my $attr ( @ARGV ) {
+        push @ln, $hosts->{$_}->{$attr};
+    }
+
+    print join( ',', @ln ) . "\n" if @ln;
+} keys %{$hosts};
+
+
+
+=pod
+
+=head1 NAME
+
+ldap2csv - Convert LDAP query results to CSV-formatted output.
+
+=head1 AUTHOR
+
+Scott Schneider <scott.schneider@vanderbilt.edu>
+
+=cut
+
+
+
+sub init {
+    my $self = bless {}, shift;
+
+    # Define params for Getopt::Long
+    $self->GetOptions(
+        'configfile=s' => \$self->{'var'}->{'configfile'},
+        'base=s'       => \$self->{'var'}->{'base'},
+        'help'         => \$self->{'var'}->{'help'},
+        'server=s'     => \$self->{'var'}->{'server'},
+        'ssl'          => \$self->{'var'}->{'ssl'},
+        'version'      => \$self->{'var'}->{'version'}
+    ) || { $self->{'var'}->{'help'} = 1 };
+
+    # Read configuration from a file if --configfile specified
+    if ( $self->{'var'}->{'configfile'} ) {
+        $self->{'var'}->{'config'} = $self->readConfig(
+            configFile => $self->{'var'}->{'configfile'}
+        );
+
+        for ( qw( username password server ) ) {
+            $self->{'var'}->{$_} ||= $self->{'var'}->{'config'}->{$_}
+                if $self->{'var'}->{'config'}->{$_}
+        }
+    }
+
+    # Make sure all necessary params are specified
+    if (
+        !$self->{'var'}->{'server'} && !$self->{'var'}->{'configfile'}
+    ) {
+        print qq(Error: required argument(s) not found;\n);
+        print qq(please provide --server or --configfile\n\n);
+
+        $self->{'var'}->{'help'} = 1;
+    }
+
+    # Display help/usage
+    if ( $self->{'var'}->{'help'} ) {
+        print qq(Type 'perldoc ldap2csv' for more options and information.\n\n);
+        exit( 1 );
+    }
+
+    # Display the (CVS) version
+    if ( $self->{'var'}->{'version'} ) {
+        print qq($1\n) if $VERSION =~ /\,v\s+(.+?)\s+/;
+        exit( 1 );
+    }
+
+    # Reformat the server name for Net::LDAP::SSL
+    if ( $self->{'var'}->{'ssl'} ) {
+        $self->{'var'}->{'server'} =
+              'ldaps://'
+            . $self->{'var'}->{'server'}
+            . ':636';
+    }
+
+    # Create a new Net::LDAP object
+    $self->{'LDAP'} = Net::LDAP->new( $self->{'var'}->{'server'} );
+
+    # Attempt to bind
+    if ( $self->{'var'}->{'username'} && $self->{'var'}->{'password'} ) {
+        $self->{'LDAP'}->{'error'} = $self->{'LDAP'}->bind(
+            "uid=$self->{'var'}->{'username'},ou=People,$self->{'base'}",
+            password => $self->{'var'}->{'password'}
+        );
+    }
+    else {
+        $self->{'LDAP'}->{'error'} = $self->{'LDAP'}->bind();
+    }
+
+    # Exit if credentials aren't valid
+    if ( $self->{'LDAP'}->{'error'}->code() ) {
+        print qq(Error: invalid LDAP credentials\n);
+        exit( 1 );
+    }
+
+    return $self;
+}
+
+sub fetch {
+    my $self = shift;
+
+    my ( $arg );
+    %{$arg} = @_;
+
+    my ( $r );
+
+    my $result = $self->{'LDAP'}->search(
+        base    => $arg->{'source'},
+        filter  => $arg->{'filter'}
+    );
+
+    foreach my $e ( $result->all_entries() ) {
+        map {
+            my $ra = [ $e->get_value( $_ ) ];
+            $r->{$e->dn()}->{$_} = @{$ra} > 1 ? $ra : $ra->[0];
+        } $e->attributes();
+    }
+
+    return $r;
+}
+
+
+
+1;

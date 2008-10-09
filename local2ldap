@@ -1,0 +1,82 @@
+#!/usr/local/bin/perl -w
+
+use Net::LDAP;
+use Sys::Hostname;
+
+use strict;
+
+my $account = $ARGV[0];
+
+my $ldap = Net::LDAP->new( 'ldaps://ldap.company.com:636' );
+
+$ldap->bind(
+    'uid=user,ou=People,dc=company,dc=com',
+    password => 'p455w0rd'
+);
+
+open F, '/etc/passwd';
+while (<F>) {
+    next unless /^$account:/;
+
+    chomp( my ( @u ) = split /:/, $_ );
+
+    my $uidNumber = $u[2];
+    my $gidNumber = $u[3];
+    my $gecos = $u[4];
+    my $homeDirectory = $u[5];
+    my $loginShell = $u[6];
+
+    my $cn = $gecos;
+    $cn =~ s/^(.+?)\,.*$/$1/;
+    $cn =~ s/^(.+?)\s\/.*$/$1/;
+    $cn = $account if $cn eq '';
+
+    my $sn = $cn;
+    $sn =~ s/^.+?(\w+)$/$1/;
+
+    print "uidNumber: $uidNumber\n";
+    print "homeDirectory: $homeDirectory\n";
+    print "loginShell: $loginShell\n";
+    print "cn: $cn\n";
+    print "sn: $sn\n";
+
+    my ( $password );
+
+    open P, '/etc/shadow';
+    while (<P>) { $password = $1 if /^$account:(.+?):/; }
+    close P;
+
+    print "password: $password\n";
+
+    my $result = $ldap->add(
+        'uid=' . $account . ',ou=People,dc=company,dc=com',
+        attrs => [
+            uid => $account,
+            cn => $cn,
+            sn => $sn,
+            uidNumber => $uidNumber,
+            gidNumber => '100',
+            homeDirectory => $homeDirectory,
+            loginShell => $loginShell,
+            gecos => $cn,
+            userPassword => '{crypt}' . $password,
+            host => hostname(),
+            objectClass => [ qw/
+                top
+                person
+                organizationalPerson
+                inetOrgPerson
+                posixAccount
+                account
+            / ]
+        ]
+    );
+
+    $result->code && die "Failed to add entry: ", $result->error, "\n";
+}
+
+close F;
+
+print "Added $account\n";
+
+
