@@ -53,6 +53,10 @@ map {
 
 ldap2csv - Convert LDAP query results to CSV-formatted output.
 
+=head1 EXAMPLE
+
+ldap2csv --server=ldap.company.com -ssl --base='dc=company,dc=com' --username='uid=admin,ou=Administrators,ou=TopologyManagement,o=NetscapeRoot' --password='s3cr3t' uid cn uidNumber gidNumber userPassword
+
 =head1 AUTHOR
 
 Scott Schneider <scott.schneider@vanderbilt.edu>
