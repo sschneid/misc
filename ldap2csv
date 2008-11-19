@@ -69,8 +69,10 @@ sub init {
         'configfile=s' => \$self->{'var'}->{'configfile'},
         'base=s'       => \$self->{'var'}->{'base'},
         'help'         => \$self->{'var'}->{'help'},
+        'password=s'   => \$self->{'var'}->{'password'},
         'server=s'     => \$self->{'var'}->{'server'},
         'ssl'          => \$self->{'var'}->{'ssl'},
+        'username=s'   => \$self->{'var'}->{'username'},
         'version'      => \$self->{'var'}->{'version'}
     ) || { $self->{'var'}->{'help'} = 1 };
 
@@ -122,7 +124,7 @@ sub init {
     # Attempt to bind
     if ( $self->{'var'}->{'username'} && $self->{'var'}->{'password'} ) {
         $self->{'LDAP'}->{'error'} = $self->{'LDAP'}->bind(
-            "uid=$self->{'var'}->{'username'},ou=People,$self->{'base'}",
+            $self->{'var'}->{'username'},
             password => $self->{'var'}->{'password'}
         );
     }
