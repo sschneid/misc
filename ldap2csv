@@ -59,7 +59,7 @@ ldap2csv --server=ldap.company.com -ssl --base='dc=company,dc=com' --username='u
 
 =head1 AUTHOR
 
-Scott Schneider <scott.schneider@vanderbilt.edu>
+Scott Schneider <sschneid@gmail.com>
 
 =cut
 
