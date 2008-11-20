@@ -1,10 +1,13 @@
 #!/bin/sh
 
+# determine hostname (for use in the cacert)
+hostname=`/bin/hostname`
+
 if [ "$1" -a -d "$1" ] ; then
     secdir="$1"
     echo "Using $1 as sec directory"
 else
-    secdir=/etc/dirsrv/slapd-adm03lp-vm
+    secdir="/etc/dirsrv/slapd-$hostname"
 fi
 
 if [ "$2" ] ; then
@@ -105,7 +108,7 @@ if test -n "$needCA" ; then
     certutil -G $prefixarg -d $secdir -z $secdir/noise.txt -f $secdir/pwdfile.txt
 # 6. Generate the self-signed certificate: 
     echo "Creating self-signed CA certificate"
-    certutil -S $prefixarg -n "CA certificate" -s "cn=CAcert-adm03lp-vm" -x -t "CT,," -m 1000 -v 120 -d $secdir -z $secdir/noise.txt -f $secdir/pwdfile.txt
+    certutil -S $prefixarg -n "CA certificate" -s "cn=CAcert-$hostname" -x -t "CT,," -m 1000 -v 120 -d $secdir -z $secdir/noise.txt -f $secdir/pwdfile.txt
 # export the CA cert for use with other apps
     echo Exporting the CA certificate to cacert.asc
     certutil -L $prefixarg -d $secdir -n "CA certificate" -a > $secdir/cacert.asc
@@ -202,7 +205,7 @@ fi
 
 # enable SSL in the directory server
 echo "Enabling SSL in the directory server - when prompted, provide the directory manager password"
-ldapmodify -h localhost -p $ldapport -D "cn=directory manager" -w -<<EOF
+/usr/lib/mozldap/ldapmodify -h localhost -p $ldapport -D "cn=directory manager" -w -<<EOF
 dn: cn=encryption,cn=config
 changetype: modify
 replace: nsSSL3
