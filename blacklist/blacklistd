@@ -1,0 +1,298 @@
+#!/usr/bin/python
+
+# blacklistd - a daemonized version of blacklist
+# Originally by Reto Glauser <blacklist@blinkeye.ch>
+# Daemonization modifications by Scott Schneider <sschneid@gmail.com>
+
+import re;
+import commands;
+import thread;
+import threading;
+import sys;
+from os import access, popen, R_OK, W_OK, X_OK;
+from time import sleep, strftime, time;
+from string import find;
+from syslog import *;
+import errno;
+import os;
+
+LOG_INPUT = "/var/log/secure"
+LOG_OUTPUT = "/var/log/blacklist.log"
+PID_FILE = "/var/run/blacklist.pid"
+LOGTAIL = "/usr/sbin/logtail"
+WHOAMI = "/usr/bin/whoami"
+IPTABLES = "/sbin/iptables"
+CUSTOM_CHAIN = "BLACKLIST"
+PERMITTED_LOGIN_FAILURES = 3
+BLOCKING_PERIOD = 600 #seconds
+SUSPECTING_PERIOD = 600 #seconds
+SLEEP_PERIOD = 30 #seconds
+CHECK_INTERVALL = 300 #seconds
+DATE_FORMAT = "%d.%m.%Y %X" # e.g.: 02.01.2006 23:49:12
+SSH_PORT = 22
+FTP_PORT = 21
+SENDMAIL = "/usr/sbin/sendmail"
+MAIL_SENDER = "blacklist@company.com"
+MAIL_RECEIVER = "root@company.com"
+
+
+SSH_REGEX = [ 
+				r"Failed (?:none|password|keyboard-interactive/pam) for (?:invalid user )*(?P<user>.*) from (?:::ffff:)*(?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})",
+		 		r"Invalid user (?P<user>.*) from (?:::ffff:)*(?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
+			]
+
+FTP_REGEX =	[
+				r"ftp(?:.*) authentication failure(?:.*) rhost=(?:::ffff:)*(?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) (?: user=)*(?P<user>.*)"
+		   	]
+
+
+# Daemonization code
+def daemonize (stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
+    # Perform first fork.
+    try:
+        pid = os.fork( )
+        if pid > 0:
+            sys.exit(0) # Exit first parent.
+    except OSError, e:
+        sys.stderr.write("fork #1 failed: (%d) %sn" % (e.errno, e.strerror))
+        sys.exit(1)
+    # Decouple from parent environment.
+    os.chdir("/")
+    os.umask(0)
+    os.setsid( )
+    # Perform second fork.
+    try:
+        pid = os.fork( )
+        if pid > 0:
+            sys.exit(0) # Exit second parent.
+    except OSError, e:
+        sys.stderr.write("fork #2 failed: (%d) %sn" % (e.errno, e.strerror))
+        sys.exit(1)
+    # The process is now daemonized, redirect standard file descriptors.
+    for f in sys.stdout, sys.stderr: f.flush( )
+    si = file(stdin, 'r')
+    so = file(stdout, 'a+')
+    se = file(stderr, 'a+', 0)
+    os.dup2(si.fileno( ), sys.stdin.fileno( ))
+    os.dup2(so.fileno( ), sys.stdout.fileno( ))
+    os.dup2(se.fileno( ), sys.stderr.fileno( ))
+
+
+# Wrapper function for commands
+def system_command( string_command ):
+	return_value = [ ]
+	return_value = ( commands.getstatusoutput( string_command ) )
+	if not return_value[ 0 ] == 0:
+		raise IOError( return_value[ 1 ] )
+	return return_value[ 1 ]
+
+
+# block ip for the duration of time
+def block( ip, time, port ):
+	try:
+		system_command( IPTABLES + " --new-chain " + CUSTOM_CHAIN )
+		system_command( IPTABLES + " --insert INPUT --jump " + CUSTOM_CHAIN )
+	except:
+		None		
+	system_command( IPTABLES + " --insert " + CUSTOM_CHAIN + " --source " + ip + " --protocol tcp --dport " + str( port ) + " --jump REJECT" )
+	LOG_OUTPUT.write( strftime( DATE_FORMAT ) + ": Blocking " + ip + " for " + str( time ) + " seconds\n" )
+	LOG_OUTPUT.flush()
+
+
+# unblock IP
+def unblock( ip, port ):
+	system_command( IPTABLES + " --delete " + CUSTOM_CHAIN + " --source " + ip + " --protocol tcp --dport " + str( port ) + " --jump REJECT" )
+	LOG_OUTPUT.write( strftime( DATE_FORMAT ) + ": Remove blocking " + ip + "\n" )
+	LOG_OUTPUT.flush()
+
+
+# mail list of IP blocked during this run
+def mail( mail_list ):
+	count = len( mail_list )
+	if count == 0:
+		return
+	ip = str( mail_list[ 0 ][ 0 ] ) + " on port " + str( mail_list[ 0 ][ 3 ] ) + "\n"
+	mail_list.remove( mail_list[ 0 ] )
+	p = popen( "%s -t" % SENDMAIL, "w" )
+	p.write( "From: " + MAIL_SENDER + "\n" )
+	p.write( "To: " + MAIL_RECEIVER + "\n" )
+	if count == 1:
+		p.write( "Subject: [" + system_command( 'hostname --long' ) + "]: Too many login failures from " + ip + "\n\n" )
+	else:
+		p.write( "Subject:  [" + system_command( 'hostname --long' ) + "]: Too many login failures from multiple IPs\n\n" )
+		for entry in mail_list[ : ]:
+			ip += entry[ 0 ] + " on port " + str( entry[ 3 ] ) + "\n"
+			mail_list.remove( entry )
+	p.write( "Blocking out " + str( count ) + " IP(s):\n\n" + ip + "\n" )
+	if p.close() != None:
+		LOG_OUTPUT.write( strftime( DATE_FORMAT ) + ": Unable to send a mail. Check your SENDMAIL configuration.\n" )
+		LOG_OUTPUT.flush()
+	
+
+# append IPs from regex_matches to ip_list and increase counter of login failures for IPs
+def create_stat( regex_matches, ip_list, ip_list_blocked, delay, port ):
+	current_time = time() + delay
+	for match in regex_matches:
+		entry = ip_list.get( match.group( 'ip' ) )
+		if entry == None:
+			ip_list[ match.group( 'ip' ) ] = [ match.group( 'ip' ), 1, current_time, port ] # [ [ ip ],[ counter for catched login failures ],[ time of last login failure ], [ port ] ]
+			entry = ip_list.get( match.group( 'ip' ) )
+		else:
+			entry[ 1 ] += 1
+  		# no tolerance for a root login attempt
+		if ( match.group( 'user' ) == "root" ):
+			entry[ 1 ] += PERMITTED_LOGIN_FAILURES
+	for key in ip_list.keys()[ : ]:
+ 		if ip_list.get( key )[ 1 ] > PERMITTED_LOGIN_FAILURES and ip_list.get( key)[ 0 ] not in ip_list_blocked:
+			ip_list_blocked.insert( 0, ip_list.get( key ) )
+			del ip_list[ key ]
+ 			block( ip_list_blocked[ 0 ][ 0 ], BLOCKING_PERIOD + delay, port )
+			mail_list.insert( 0, ip_list_blocked[ 0 ] )
+
+
+# Someone must do the work
+def scan():
+	global countdown
+	
+	try:
+		new_log_entries = system_command( LOGTAIL + " -f " + LOG_INPUT )
+	except:
+		new_log_entries = system_command( LOGTAIL + " " + LOG_INPUT )
+
+	for i in range( 0, len( SSH_REGEX ) ):
+		re_ssh = re.compile( SSH_REGEX[ i ] )
+		regex_matches = re_ssh.finditer( new_log_entries )
+		create_stat( regex_matches, ssh_list, ssh_list_blocked, len( re_ssh.findall( new_log_entries ) )/100, SSH_PORT )
+	
+	for i in range( 0, len( FTP_REGEX ) ):
+		re_ftp = re.compile( FTP_REGEX[ i ] )
+		regex_matches = re_ftp.finditer( new_log_entries )
+		create_stat( regex_matches, ftp_list, ftp_list_blocked, len( re_ftp.findall( new_log_entries ) )/100, FTP_PORT )
+			
+	mail( mail_list )
+	
+	if countdown <= 0:
+		countdown = CHECK_INTERVALL
+		current_time = time()
+		for entry in ssh_list_blocked[ : ]:
+			if( current_time - entry[ 2 ] ) > BLOCKING_PERIOD:
+				unblock( entry[ 0 ], SSH_PORT )
+				ssh_list_blocked.remove( entry )
+		for key in ssh_list.keys():
+			if( current_time - ssh_list.get( key )[ 2 ] ) > SUSPECTING_PERIOD:
+				del ssh_list[ key ]
+				
+		for entry in ftp_list_blocked[ : ]:
+			if( current_time - entry[ 2 ] ) > BLOCKING_PERIOD:
+				unblock( entry[ 0 ], FTP_PORT )
+				ftp_list_blocked.remove( entry )
+		for key in ftp_list.keys():
+			if( current_time - ftp_list.get( key )[ 2 ] ) > SUSPECTING_PERIOD:
+				del ftp_list[ key ]				
+
+# Check if there's another instance running
+def handlepid():
+	try:
+		pidfile = os.fdopen( os.open( PID_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL ), 'w' )
+	except OSError:
+		try:
+			pid = int( open( PID_FILE ).read() )
+		except IOError:
+			sys.exit( "Error opening pidfile %s" %PID_FILE )
+		try:
+			os.kill( pid, 0 )
+		except OSError, why:
+			if why.errno == errno.ESRCH:
+				print "Removing stale pidfile %s with pid %d\n" %( PID_FILE, pid )
+				os.remove( PID_FILE )
+				if os.path.exists( PID_FILE ):
+					sys.exit( "Cannot remove pidfile." )
+				else:
+					return handlepid()
+		sys.exit( "\nAnother blacklist daemon is running with pid %d" %pid )
+	pidfile.write( "%d\n" %os.getpid() )
+	pidfile.flush()
+	pidfile.close()	
+	cleanup();
+
+
+if not system_command( "whoami" ) == "root":
+	raise IOError, "This script must be run as root"
+if not access( LOG_INPUT, R_OK ):
+	raise IOError, LOG_INPUT + " is not readable"
+if not access( LOGTAIL, X_OK ):
+	raise IOError, LOGTAIL + " is not executable"
+if not access( WHOAMI, X_OK ):
+	raise IOError, WHOAMI + " is not executable"
+if not access( IPTABLES, X_OK ):
+	raise IOError, IPTABLES + " is not executable"
+if not access(  SENDMAIL, X_OK ):
+	raise IOError, SENDMAIL + " is not executable"
+
+
+# test modus
+if len( sys.argv ) == 2:
+	print( "\n* Entering test mode" )
+	
+	for i in range( 0, len( SSH_REGEX ) ):
+		re_ssh = re.compile( SSH_REGEX[ i ] )
+		if not len( re_ssh.findall( sys.argv[ 1 ] ) ):
+			print( "* SSH_REGEX[ " + str( i ) + " ]: No match found"  )
+		else:
+			regex_matches = re_ssh.finditer( sys.argv[ 1 ] )
+			for match in regex_matches:
+				print( "* SSH_REGEX[ " + str( i ) + " ]: Caught ip \"" + str( match.group( 'ip' ) ) + " and username \"" + str( match.group( 'user' ) ) + "\"" )
+	
+	for i in range( 0, len( FTP_REGEX ) ):
+		re_ftp = re.compile( FTP_REGEX[ i ] )
+		if not len( re_ftp.findall( sys.argv[ 1 ] ) ):
+			print( "* FTP_REGEX[ " + str( i ) + " ]: No match found" )
+		else:
+			regex_matches = re_ftp.finditer( sys.argv[ 1 ] )
+			for match in regex_matches:
+				print( "* FTP_REGEX[ " + str( i ) + " ]: Caught ip \"" + str( match.group( 'ip' ) ) + "\" and username \"" + str( match.group( 'user' ) ) + "\"" )
+				
+	p = popen( "%s -t" % SENDMAIL, "w" )
+	p.write( "From: " + MAIL_SENDER + "\n" )
+	p.write( "To: " + MAIL_RECEIVER + "\n" )
+	p.write( "Subject: blacklist.py ist testing your sendmail configuration\n\n" )
+	p.write( "A test mail from blacklist.py\n" )
+	if p.close() != None:
+		print( "* ERROR sending a mail. Check your SENDMAIL configuration.\n" )
+	else:
+		print( "* SUCCESS: Sending mail from " + MAIL_SENDER + " to " + MAIL_RECEIVER )
+	sys.exit(0)
+
+
+# Cleanup
+def cleanup():
+	try:
+		system_command( IPTABLES + " --delete INPUT -j " + CUSTOM_CHAIN )
+		system_command( IPTABLES + " --flush " + CUSTOM_CHAIN )
+		system_command( IPTABLES + " --delete-chain " + CUSTOM_CHAIN )
+	except:
+		None
+	
+	
+# Call cleanup() before exiting the script
+sys.exitfunc = cleanup
+handlepid()
+LOG_OUTPUT = file( LOG_OUTPUT, "a")
+
+ssh_list = { }
+ssh_list_blocked = [ ]
+
+ftp_list = { }
+ftp_list_blocked = [ ]
+
+mail_list = [ ]
+countdown = CHECK_INTERVALL
+cleanup() # remove old entries
+
+daemonize()
+
+while 1:
+	scan()
+	sleep( SLEEP_PERIOD )
+	countdown -= SLEEP_PERIOD
+	

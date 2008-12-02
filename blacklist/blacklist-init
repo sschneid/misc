@@ -1,0 +1,76 @@
+#!/bin/bash
+# blacklist     Init script for running the SSH blacklist daemon
+#
+# Author:       Scott Schneider <sschneid@gmail.com>
+#
+# chkconfig: - 98 02
+#
+# description: Enables SSH brute-force blacklisting.
+
+PATH=/usr/bin:/sbin:/bin:/usr/sbin
+export PATH
+
+lockfile=${LOCKFILE-/var/lock/subsys/blacklist}
+pidfile=${PIDFILE-/var/run/blacklist.pid}
+blacklistd=${BLACKLISTD-/usr/sbin/blacklistd}
+RETVAL=0
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+start() {
+	echo -n $"Starting blacklistd: "
+        daemon $blacklistd
+	RETVAL=$?
+	echo
+        [ $RETVAL = 0 ] && touch ${lockfile}
+        return $RETVAL
+}
+
+stop() {
+	echo -n $"Stopping blacklistd: "
+        killproc $blacklistd
+	RETVAL=$?
+	echo
+	[ $RETVAL = 0 ] && rm -f ${lockfile} ${pidfile}
+}
+
+reload() {
+	echo -n $"Restarting blacklistd: "
+        killproc $blacklistd -HUP
+	RETVAL=$?
+	echo
+	return $RETVAL
+}
+
+restart() {
+    stop
+    start
+}
+
+case "$1" in
+  start)
+	start
+	;;
+  stop) 
+	stop
+	;;
+  restart)
+	restart
+	;;
+  reload|force-reload)
+        reload
+	;;
+  condrestart|try-restart)
+	[ -f "$pidfile" ] && restart
+	;;
+  status)
+        status $blacklistd
+        RETVAL=$?
+	;;
+  *)
+	echo $"Usage: $0 {start|stop|status|restart|reload|force-reload|condrestart|}"
+	exit 1
+esac
+
+exit $RETVAL
