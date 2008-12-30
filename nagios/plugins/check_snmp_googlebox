@@ -1,0 +1,103 @@
+#!/usr/bin/perl
+
+# Perform various SNMP health checks on a Google Search Applicance
+# v1, sschneid@gmail.com
+
+package check_snmp_googlebox;
+
+use Getopt::Long;
+use Net::SNMP;
+
+use strict;
+
+
+
+my $self = check_snmp_googlebox->init();
+
+my ( $session, $error ) = Net::SNMP->session(
+    -hostname  => $self->{'var'}->{'hostname'},
+    -community => $self->{'var'}->{'community'}
+);
+
+unless ( defined( $session ) ) {
+    printf( "ERROR: %s.\n", $error );
+    exit( 1 );
+}
+
+my $result = $session->get_request(
+    -varbindlist => [ $self->{'oid'}, $self->{'gsa-ver'} ]
+);
+
+unless ( defined( $result ) ) {
+    printf( "ERROR: %s.\n", $session->error );
+    exit( 1 );
+}
+
+printf( '%.4s ', uc( $self->{'var'}->{'object'} ) );
+
+if ( $self->{'var'}->{'object'} =~ /Health$/ ) {
+    for ( $result->{$self->{'oid'}} ) {
+        /0/ && print 'OK';
+        /1/ && print 'WARNING';
+        /2/ && print 'CRITICAL';
+    };
+}
+else { print 'UNKNOWN'; }
+
+print ' - ' . $result->{$self->{'gsa-ver'}};
+
+if ( $self->{'var'}->{'perfdata'} ) {
+    print ' | ' . $self->{'var'}->{'object'} . '=' . $result->{$self->{'oid'}};
+}
+
+print "\n";
+
+
+sub init {
+    my $self = bless {}, shift;
+
+    $self->{'gsa-ver'}    = '.1.3.6.1.2.1.1.1.0';
+    $self->{'oid-prefix'} = '.1.3.6.1.4.1.11129';
+
+    $self->{'oid'} = {
+        'crawlingRate'      => '.1.1.2.2.0', # not yet supported
+        'docsServed'        => '.1.1.2.1.0', # not yet supported
+        'diskHealth'        => '.1.3.1.1.0',
+        'machineHealth'     => '.1.3.3.1.0',
+        'temperatureHealth' => '.1.3.2.1.0'
+    };
+
+    $self->GetOptions(
+        'community=s'     => \$self->{'var'}->{'community'},
+        'host|hostname=s' => \$self->{'var'}->{'hostname'},
+        'object=s'        => \$self->{'var'}->{'object'},
+        'perfdata|f'      => \$self->{'var'}->{'perfdata'}
+    ) || { $self->{'var'}->{'help'} = 1 };
+
+    unless (
+        (
+            $self->{'var'}->{'community'} &&
+            $self->{'var'}->{'hostname'} &&
+            $self->{'var'}->{'object'}
+        ) &&
+        ( defined( $self->{'oid'}->{$self->{'var'}->{'object'}} ) )
+    ) {
+        $self->{'var'}->{'help'} = 1;
+    }
+
+    if ( $self->{'var'}->{'help'} ) {
+        print qq(Type 'perldoc $0' for more options and information\n\n);
+        print qq(USAGE: $0 -H <host> -C <community> -O <object> [option]...\n);
+        exit( 1 );
+    }
+
+    $self->{'oid'} =
+        $self->{'oid-prefix'} . $self->{'oid'}->{$self->{'var'}->{'object'}};
+
+    return $self;
+}
+
+
+
+1;
+
