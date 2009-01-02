@@ -1,0 +1,88 @@
+#!/usr/bin/perl -w
+
+# Create/update RRD graphs
+
+use File::Find;
+use strict;
+
+my $rradir      = '/var/log/nagios/rra';
+my $outdir      = '/usr/local/nagios/share/images/graphs';
+my $templatedir = '/usr/local/nagios/etc/graphs';
+my $rrdtool     = '/usr/bin/rrdtool';
+
+my @rrd_defaults = (
+    '--imgformat=PNG',
+    '--height=120',
+    '--width=500',
+    '--alt-autoscale-max',
+    '--lazy',
+    '--slope-mode',
+    '--lower-limit=0',
+    '--base=1000'
+);
+
+#--
+
+my ( $map, $template );
+
+# Find all known hosts
+find(
+    sub {
+        my ( $d );
+
+        ( ( $d->{'dev'}, $d->{'ino'}, $d->{'mode'}, $d->{'nlink'}, $d->{'uid'}, $d->{'gid'} ) = lstat( $_ ) ) &&
+        ( -d _ && ( $d->{'nlink'} == 2 ) ) && do {
+            my $host = $1 if $File::Find::name =~ /.*\/(.+?)$/;
+
+            # Create a host->services hashmap
+            find(
+                sub {
+                    my ( $f );
+
+                    ( ( $f->{'dev'}, $f->{'ino'}, $f->{'mode'}, $f->{'nlink'}, $f->{'uid'}, $f->{'gid'} ) = lstat( $_ ) ) &&
+                    ( -f _ ) && do {
+                        push @{$map->{$host}}, $1 if $File::Find::name =~ /.*\/.+?_(.+?)\..+?$/;
+                    }
+                }, $File::Find::name
+            );
+        };
+    }, $rradir
+);
+
+# Create graphs from RRAs
+map {
+    my $host = $_;
+
+    foreach my $service ( @{$map->{$host}} ) {
+
+        # Load the service template if it doesn't exist
+        unless ( $template->{$service} ) {
+            open( T, $templatedir . '/' . $service . '.t' ) || next;
+            foreach ( <T> ) {
+                chomp();
+                push @{$template->{$service}}, $_;
+            }
+            close( T );
+        }
+
+        my $i = $rradir . '/' . $host . '/' . $host . '_' . $service . '.rrd';
+        my $o = $host . '_' . $service;
+
+        my ( @args );
+
+        # Perform template substitutions
+        foreach ( @{$template->{$service}} ) {
+            my $l = $_;
+            $l =~ s/\$HOSTNAME\$/$host/g;
+            $l =~ s/\$RRD_FILENAME\$/$i/g;
+            push @args, $l;
+        }
+
+        system( $rrdtool, 'graph', $outdir . '/' . $o . '_d.png', @rrd_defaults, '--start=-1d', @args );     # Daily
+        system( $rrdtool, 'graph', $outdir . '/' . $o . '_w.png', @rrd_defaults, '--start=-604800', @args ); # Weekly
+        system( $rrdtool, 'graph', $outdir . '/' . $o . '_m.png', @rrd_defaults, '--start=-1m', @args );     # Monthly
+        system( $rrdtool, 'graph', $outdir . '/' . $o . '_y.png', @rrd_defaults, '--start=-1y', @args );     # Yearly
+    }
+} keys %{$map};
+
+
