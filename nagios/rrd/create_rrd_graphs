@@ -75,6 +75,7 @@ map {
             my $l = $_;
             $l =~ s/\$HOSTNAME\$/$host/g;
             $l =~ s/\$RRD_FILENAME\$/$i/g;
+            $l =~ s/\$SERVICE\$/$service/g;
             push @args, $l;
         }
 

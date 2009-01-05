@@ -1,4 +1,4 @@
---title=$HOSTNAME$ - disk space used
+--title=$HOSTNAME$ - $SERVICE$ space used
 --vertical-label=Space used in MB
 DEF:a=$RRD_FILENAME$:used:AVERAGE
 CDEF:cdefg=TIME,1229555708,GT,a,a,UN,0,a,IF,IF
