@@ -19,6 +19,8 @@ my ( $session, $error ) = Net::SNMP->session(
     -community => $self->{'var'}->{'community'}
 );
 
+printf( '%.4s ', uc( $self->{'var'}->{'object'} ) );
+
 unless ( defined( $session ) ) {
     printf( "ERROR: %s.\n", $error );
     exit( 1 );
@@ -36,8 +38,6 @@ unless ( defined( $result ) ) {
     printf( "ERROR: %s.\n", $session->error );
     exit( 1 );
 }
-
-printf( '%.4s ', uc( $self->{'var'}->{'object'} ) );
 
 if ( $self->{'var'}->{'object'} =~ /Health$/ ) {
     for ( $result->{$self->{'oid'}} ) {
