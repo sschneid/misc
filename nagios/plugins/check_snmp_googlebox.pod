@@ -1,0 +1,73 @@
+=head1 NAME
+
+check_snmp_googlebox - Nagois plugin for a Google Search Appliance
+
+=head1 SYNOPSIS
+
+C<< check_snmp_googlebox -H <host> -C <community> -O <object> [option]...  >>
+
+=head1 DESCRIPTION
+
+check_snmp_googlebox is a Nagios plugin for monitoring the health of a GSA box
+via Net::SNMP.
+
+=head1 OPTIONS
+
+=over 4
+
+=item -H
+
+The hostname or IP address of the Google Search Appliance to connect to.
+
+=item -C
+
+The SNMP community name of the GSA.
+
+=item -O
+
+The MIB object to poll.  Valid objects are:
+
+=over 4
+
+=item diskHealth
+
+Disk health.
+
+=item machineHealth
+
+Machine health.
+
+=item temperatureHealth
+
+Machine temperature health.
+
+=item crawlingRate
+
+Crawling rate.
+
+=item docsServed
+
+Documents served.
+
+=back
+
+=back
+
+=head1 EXAMPLE
+
+C<< check_snmp_googlebox -H googlebox -C public -O diskHealth >>
+
+Perform a diskHealth check on host 'googlebox' using community name 'public'.
+
+=head1 SAMPLE OUTPUT
+
+What follows is the output of a check_snmp_googlebox diskHealth check.
+
+    DISK OK - GSA Version 5.0.4
+
+=head1 AUTHOR
+
+Scott Schneider <sschneid@gmail.com>
+
+=cut
+
