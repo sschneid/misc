@@ -1,0 +1,46 @@
+=head1 NAME
+
+check_snmp_process - Retrive (via SNMP) memory & CPU utilization for a named process
+
+=head1 SYNOPSIS
+
+C<< check_snmp_process -H <host> -C <community> -w <warn> -c <crit> <process name> [option]... >>
+
+=head1 DESCRIPTION
+
+check_snmp_process is a Nagios plugin for monitoring the memory and CPU utilization of a named process via Net::SNMP.
+
+=head1 OPTIONS
+
+=over 4
+
+=item -H
+
+The hostname or IP address of the machine to connect to.
+
+=item -C
+
+The SNMP community name of the machine.
+
+=item -w
+
+Warning levels for CPU and RAM (in order).  Usage like: -w 8000,10000 to warn on CPU usage over 8000 and RAM over 10000
+
+=item -c
+
+Critical levels.  Usage is the same as warning (-w).
+
+=back
+
+=head1 EXAMPLE
+
+C<< check_snmp_process -H webhost -C public -w 8000,10000 -c 10000,12000 httpd >>
+
+Perform a check of processes named 'httpd' on host 'webhost' using community name 'public'.  Warn at CPU usage over 8000 and RAM usage over 10000.  Critical at CPU 10000 and RAM 12000.
+
+=head1 AUTHOR
+
+Scott Schneider <sschneid@gmail.com>
+
+=cut
+

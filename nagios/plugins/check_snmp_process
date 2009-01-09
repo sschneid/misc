@@ -1,0 +1,180 @@
+#!/usr/bin/perl
+
+# Retrive (via SNMP) memory & CPU utilization for a named process
+# v1, sschneid@gmail.com
+
+package check_snmp_process;
+
+use Getopt::Long;
+use Net::SNMP;
+
+use strict;
+
+
+
+my $self = check_snmp_process->init();
+
+my ( @oid );
+
+foreach ( @{$self->{'id'}} ) {
+    push @oid, $self->{'oid-prefix'} . $self->{'oid'}->{'runPath'} . $_;
+    push @oid, $self->{'oid-prefix'} . $self->{'oid'}->{'usedCPU'} . $_;
+    push @oid, $self->{'oid-prefix'} . $self->{'oid'}->{'usedRAM'} . $_;
+}
+
+my $result = $self->{'session'}->get_request( -varbindlist => [ @oid ] );
+
+unless ( defined( $result ) ) {
+    printf( "ERROR: %s.\n", $self->{'session'}->error );
+    exit( 1 );
+}
+foreach my $key ( keys %{$result} ) {
+    for ( $key ) {
+        /^$self->{'oid-prefix'}$self->{'oid'}->{'runPath'}(.*)$/ && do {
+            $result->{$1}->{'runPath'} = $result->{$key};
+        };
+
+        /^$self->{'oid-prefix'}$self->{'oid'}->{'usedCPU'}(.*)$/ && do {
+            $result->{$1}->{'usedCPU'} = $result->{$key};
+            $result->{'total'}->{'usedCPU'} += $result->{$key};
+        };
+
+        /^$self->{'oid-prefix'}$self->{'oid'}->{'usedRAM'}(.*)$/ && do {
+            $result->{$1}->{'usedRAM'} = $result->{$key};
+            $result->{'total'}->{'usedRAM'} += $result->{$key};
+        };
+    }
+
+    delete $result->{$key};
+}
+
+if ( $result ) {
+    print 'PROC ';
+
+    my ( $status );
+
+    if (
+        ( $result->{'total'}->{'usedCPU'} > $self->{'warn'}->{'cpu'} ) ||
+        ( $result->{'total'}->{'usedRAM'} > $self->{'warn'}->{'ram'} )
+    ) {
+        $status = 'WARNING'; 
+    }
+
+    if (
+        ( $result->{'total'}->{'usedCPU'} > $self->{'crit'}->{'cpu'} ) ||
+        ( $result->{'total'}->{'usedRAM'} > $self->{'crit'}->{'ram'} )
+    ) {
+        $status = 'CRITICAL'; 
+    }
+
+    $status ||= 'OK';
+
+    print $status;
+}
+else { print 'PROC UNKNOWN'; }
+
+if ( $self->{'var'}->{'perfdata'} ) {
+    print ' | ';
+    foreach my $key ( keys %{$result->{'total'}} ) {
+        print "$key=$result->{'total'}->{$key} ";
+    }
+}
+
+print "\n";
+
+
+
+sub init {
+    my $self = bless {}, shift;
+
+    Getopt::Long::Configure( 'no_ignore_case' );
+
+    $self->{'oid-prefix'} = '.1.3.6.1.2.1.25';
+
+    $self->{'oid'} = {
+        'processTable'  => '.4.2.1.2',
+
+        'runPath'       => '.4.2.1.4',
+        'usedCPU'       => '.5.1.1.1',
+        'usedRAM'       => '.5.1.1.2'
+    };
+
+    $self->GetOptions(
+        'Community=s'     => \$self->{'var'}->{'community'},
+        'Host|hostname=s' => \$self->{'var'}->{'hostname'},
+
+        'perfdata|f'      => \$self->{'var'}->{'perfdata'},
+        'warning=s'       => \$self->{'var'}->{'warn'},
+        'critical=s'      => \$self->{'var'}->{'crit'}
+    ) || { $self->{'var'}->{'help'} = 1 };
+
+    unless (
+        ( $self->{'var'}->{'community'} && $self->{'var'}->{'hostname'} ) &&
+        ( $self->{'var'}->{'warn'} && $self->{'var'}->{'crit'} ) && $ARGV[0]
+    ) {
+        $self->{'var'}->{'help'} = 1;
+    }
+
+    unless (
+        ( $self->{'var'}->{'warn'} =~ /^\d+\,\d+$/ ) &&
+        ( $self->{'var'}->{'crit'} =~ /^\d+\,\d+$/ )
+    ) {
+        $self->{'var'}->{'help'} = 1;
+    }
+
+    ( $self->{'warn'}->{'cpu'}, $self->{'warn'}->{'ram'} )
+        = split /,/, $self->{'var'}->{'warn'};
+    ( $self->{'crit'}->{'cpu'}, $self->{'crit'}->{'ram'} )
+        = split /,/, $self->{'var'}->{'crit'};
+
+    if ( $self->{'var'}->{'help'} ) {
+        print qq(Type 'perldoc $0' for more options and information\n\n);
+        print qq(USAGE: $0 -H <host> -C <community> -w <warn> -c <crit> );
+        print qq(<process name> [option]...\n);
+        exit( 1 );
+    }
+
+    ( $self->{'session'}, $self->{'error'} ) = Net::SNMP->session(
+        -hostname  => $self->{'var'}->{'hostname'},
+        -community => $self->{'var'}->{'community'}
+    );
+
+    unless ( defined( $self->{'session'} ) ) {
+        printf( "ERROR: %s.\n", $self->{'error'} );
+        exit( 1 );
+    }
+
+    my $result = $self->{'session'}->get_table(
+            $self->{'oid-prefix'} . $self->{'oid'}->{'processTable'}
+    );
+
+    foreach ( keys %{$result} ) {
+        if ( $result->{$_} eq $ARGV[0] ) {
+            push @{$self->{'id'}}, $_;
+        }
+    }
+
+    if ( $self->{'id'} ) {
+        my $c = 0;
+        foreach ( @{$self->{'id'}} ) {
+            $self->{'id'}[$c] = $1 if /(\.\d+)$/;
+            $c++;
+        }
+    }
+    else {
+        printf( "ERROR: process '%s' not found.\n", $ARGV[0] );
+        exit( 1 );
+    }
+
+    unless ( defined( $result ) ) {
+        printf( "ERROR: %s.\n", $self->{'session'}->error );
+        exit( 1 );
+    }
+
+    return $self;
+}
+
+
+
+1;
+
