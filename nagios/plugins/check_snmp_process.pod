@@ -30,6 +30,10 @@ Warning levels for CPU and RAM (in order).  Usage like: -w 8000,10000 to warn on
 
 Critical levels.  Usage is the same as warning (-w).
 
+=item -f
+
+Include performance metrics in out.  This functionality is really the reason that this script exists.
+
 =back
 
 =head1 EXAMPLE
