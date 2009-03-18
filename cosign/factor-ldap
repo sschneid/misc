@@ -46,10 +46,6 @@ my $update = $ldap->modify(
     replace => { 'lastLogin' => $timestamp }
 );
 
-if ( $update->code() ) {
-    print $update->error();
-}
-
 print "ldap\n";
 exit( 0 );
 
