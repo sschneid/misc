@@ -1,0 +1,37 @@
+#!/usr/bin/perl -w
+
+# Make sure all LDAP users with access to this host have home directories.
+
+use Net::LDAP;
+use Sys::Hostname;
+
+use strict;
+
+my $host = hostname();
+my $ldap = Net::LDAP->new( 'ldaps://ldap.company.com:636' );
+
+my $mesg = $ldap->search(
+    base => 'dc=company,dc=com',
+    filter => "(& (uid=*) (| (host=$host) (host=\\*) ) )"
+);
+
+foreach ( $mesg->entries() ) {
+    my ( $user );
+
+    $user->{'login'} = $_->get_value( 'uid' );
+    $user->{'uid'} = $_->get_value( 'uidNumber' );
+    $user->{'gid'} = $_->get_value( 'gidNumber' );
+    $user->{'homedir'} = $_->get_value( 'homeDirectory' );
+
+    next if $user->{'uid'} < 1000;
+    next unless $user->{'homedir'} =~ /^\/home\/\w+$/;
+
+    unless ( -e $user->{'homedir'} ) {
+        mkdir( $user->{'homedir'} );
+        chown( $user->{'uid'}, $user->{'gid'}, $user->{'homedir'} );
+
+        print $user->{'login'} . "'s homedir (" . $user->{'homedir'}
+        . ") did not exist; created.\n";
+    }
+}
+
