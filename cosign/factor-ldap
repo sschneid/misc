@@ -1,0 +1,55 @@
+#!/usr/bin/perl -w
+
+# An LDAP authentication factor for CoSign that supports writing a user's last
+# login time.
+
+# Quick & dirty setup / requirements:
+#
+#   - lastLogin attribute
+#      - directoryString, non-multi
+#
+#   - objectClass=companydotcomPerson
+#      - allows 'lastLogin' attribute
+#
+#   - ou=People,dc=company,dc=com
+#      - ACL allowing self-write to 'lastLogin' attribute
+
+use Net::LDAP;
+use strict;
+
+chomp( my $user = <STDIN> );
+chomp( my $pass = <STDIN> );
+
+my $ldap = Net::LDAP->new( 'ldaps://ldap.company.com:636' );
+
+my $mesg = $ldap->search(
+    base => 'dc=company,dc=com',
+    filter => "(& (objectClass=companydotcomPerson) (uid=$user) )"
+);
+
+unless ( $mesg->count() ) {
+    print "Login failed: User '$user' does not exist.\n";
+    exit( 1 );
+}
+
+my $result = $ldap->bind( $mesg->entry()->dn(), password => $pass );
+
+if ( $result->code() ) {
+    print 'Login failed: ' . $result->error() . ".\n";
+    exit( 1 );
+}
+
+my $timestamp = localtime();
+
+my $update = $ldap->modify(
+    $mesg->entry()->dn(),
+    replace => { 'lastLogin' => $timestamp }
+);
+
+if ( $update->code() ) {
+    print $update->error();
+}
+
+print "ldap\n";
+exit( 0 );
+
