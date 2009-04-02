@@ -1,0 +1,53 @@
+#!/usr/local/bin/perl -w
+
+use strict;
+
+# Usage: perl parse_iTunes iTunes\ Music\ Library.xml
+
+my $file = $ARGV[0];
+
+die "Please specify a library file.\n"   unless $ARGV[0];
+die "Library [$file] does not exist.\n"  unless -e $file;
+
+my ($library, $total);
+
+$/ = '<dict>';
+
+open(XML, "<$file") or die "Library [$file] could not be opened: $!\n";
+
+while (<XML>) {
+    next unless /Artist/i;
+
+    s/[\f\n\r\t]//g;
+
+    my ($t);
+
+    ($t->{'artist'}) = $_ =~ /<key>Artist<\/key><string>(.*?)<\/string>/;
+    ($t->{'album'} ) = $_ =~ /<key>Album<\/key><string>(.*?)<\/string>/;
+
+    foreach (qw( artist album )) { $t->{$_} =~ s/^(A|An|The) (.*)$/$2, $1/i; }
+
+    $library->{$t->{'artist'}}->{$t->{'album'}}++;
+
+    $total->{'tracks'}++;
+}
+
+close(XML);
+
+
+
+#--
+
+foreach my $artist (sort keys %{$library}) {
+    print "$artist\n";
+
+    foreach my $album (sort keys %{$library->{$artist}}) {
+        printf "\t%-65s (%s)\n", $album, $library->{$artist}->{$album};
+        $total->{'albums'}++;
+    }
+
+    print "\n";
+}
+
+print "\n$total->{'albums'} total albums, comprised of $total->{'tracks'} total tracks.\n";
+
