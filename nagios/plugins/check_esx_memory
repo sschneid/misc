@@ -14,7 +14,7 @@ use strict;
 
 my $self = check_esx_memory->init();
 
-my $view = Vim::find_entity_view( view_type=> 'HostSystem' );
+my $view = Vim::find_entity_view( view_type => 'HostSystem' );
 
 my ( $mem );
 
