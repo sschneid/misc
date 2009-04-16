@@ -1,0 +1,54 @@
+=head1 NAME
+
+check_esx_disk - Retrive disk utilization from a VMware ESX(i) host
+
+=head1 SYNOPSIS
+
+C<< check_esx_disk -h <host> -u <username> -p <password> -w <warn> -c <crit> [option]... <datastore-name>>>
+
+=head1 DESCRIPTION
+
+check_esx_disk is a Nagios plugin for monitoring the disk utilization of a VMware ESX(i) host.
+
+=head1 OPTIONS
+
+=over 4
+
+=item -h
+
+The hostname or IP address of the machine to connect to.
+
+=item -u
+
+The username to connect with.
+
+=item -p
+
+The password.
+
+=item -w
+
+Warning level (percentage) for disk use.  Usage like: -w 80 to warn on disk usage over 80%.
+
+=item -c
+
+Critical levels.  Usage is the same as warning (-w).
+
+=item -f
+
+Include performance metrics in out.  This functionality is really the reason that this script exists.
+
+=back
+
+=head1 EXAMPLE
+
+C<< check_esx_disk -h esxhost -u monitor -p m0n1t0r -w 80 -c 90 -f esxhost-datastore>>
+
+Perform a check on host 'esxhost' datastore 'esxhost-datastore'.  Warn at disk usage over 80%.  Critical at disk 90%.
+
+=head1 AUTHOR
+
+Scott Schneider <sschneid@gmail.com>
+
+=cut
+
