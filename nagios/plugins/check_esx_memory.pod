@@ -1,0 +1,54 @@
+=head1 NAME
+
+check_esx_memory - Retrive memory utilization from a VMware ESX(i) host
+
+=head1 SYNOPSIS
+
+C<< check_esx_memory -h <host> -u <username> -p <password> -w <warn> -c <crit> [option]... >>
+
+=head1 DESCRIPTION
+
+check_esx_memory is a Nagios plugin for monitoring the memory utilization of a VMware ESX(i) host.
+
+=head1 OPTIONS
+
+=over 4
+
+=item -h
+
+The hostname or IP address of the machine to connect to.
+
+=item -u
+
+The username to connect with.
+
+=item -p
+
+The password.
+
+=item -w
+
+Warning level (percentage) for memory use.  Usage like: -w 80 to warn on memory usage over 80%.
+
+=item -c
+
+Critical levels.  Usage is the same as warning (-w).
+
+=item -f
+
+Include performance metrics in out.  This functionality is really the reason that this script exists.
+
+=back
+
+=head1 EXAMPLE
+
+C<< check_esx_memory -h esxhost -u monitor -p m0n1t0r -w 80 -c 90 -f >>
+
+Perform a check on host 'esxhost'.  Warn at memory usage over 80%.  Critical at memory 90%.
+
+=head1 AUTHOR
+
+Scott Schneider <sschneid@gmail.com>
+
+=cut
+
