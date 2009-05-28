@@ -1,0 +1,40 @@
+#!/bin/bash
+
+BACKUP_MOUNT=/mnt/netbackup
+BACKUP_DIR=sql_backup
+
+BACKUP_PATH=${BACKUP_MOUNT}/${BACKUP_DIR}/$1
+BACKUP_STAMP=$(/bin/date +%Y-%m-%d)
+
+if [ ! $1 ]; then
+    /bin/echo "Which database?"
+    exit 1
+fi
+
+if [ ! -e ${BACKUP_MOUNT}/MOUNTED ]; then
+    /bin/mount ${BACKUP_MOUNT}
+fi
+
+if [ ! -e ${BACKUP_PATH} ]; then
+    /bin/mkdir -p ${BACKUP_PATH}
+fi
+
+LIST_BACKUPS=$(/bin/ls -tr ${BACKUP_PATH})
+for DIR in ${LIST_BACKUPS};
+do
+    TMP_DIR="${BACKUP_PATH}/${DIR}"
+    TMP=$(/bin/echo ${TMP_DIR##*--})
+
+    if [ $TMP -ge 3 ]; then
+        /bin/rm -rf "${BACKUP_PATH}/${DIR}"
+    else
+        BASE=$(/bin/echo ${TMP_DIR%--*})
+        NEW=${BASE}--$((${TMP}+1))
+        /bin/mv "${BACKUP_PATH}/${DIR}" "$NEW"
+    fi
+done
+
+/bin/mkdir ${BACKUP_PATH}/$1--${BACKUP_STAMP}--1
+/usr/bin/mysqldump $1 >${BACKUP_PATH}/$1--${BACKUP_STAMP}--1/$1.sql
+/bin/gzip ${BACKUP_PATH}/$1--${BACKUP_STAMP}--1/$1.sql
+
