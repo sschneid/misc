@@ -2,8 +2,8 @@
 
 BACKUP_MOUNT=/mnt/netbackup
 BACKUP_DIR=sql_backup
-
-BACKUP_PATH=${BACKUP_MOUNT}/${BACKUP_DIR}/$1
+HOSTNAME=$(/bin/hostname)
+BACKUP_PATH=${BACKUP_MOUNT}/${BACKUP_DIR}/${HOSTNAME}/$1
 BACKUP_STAMP=$(/bin/date +%Y-%m-%d)
 
 if [ ! $1 ]; then
@@ -35,6 +35,10 @@ do
 done
 
 /bin/mkdir ${BACKUP_PATH}/$1--${BACKUP_STAMP}--1
-/usr/bin/mysqldump $1 >${BACKUP_PATH}/$1--${BACKUP_STAMP}--1/$1.sql
+if [ $3 ]; then
+    /usr/bin/mysqldump $1 --user=$2 --password=$3 >${BACKUP_PATH}/$1--${BACKUP_STAMP}--1/$1.sql
+else
+    /usr/bin/mysqldump $1 >${BACKUP_PATH}/$1--${BACKUP_STAMP}--1/$1.sql
+fi
 /bin/gzip ${BACKUP_PATH}/$1--${BACKUP_STAMP}--1/$1.sql
 
