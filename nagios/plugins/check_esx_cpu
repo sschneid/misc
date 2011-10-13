@@ -21,7 +21,7 @@ my ( $cpu );
 $cpu->{'use'}   = $view->summary->quickStats->overallCpuUsage;
 $cpu->{'total'} = $view->hardware->cpuInfo->hz / 1000000 * $view->hardware->cpuInfo->numCpuThreads;
 
-$cpu->{'utilization'} = ( $cpu->{'use'} / $cpu->{'total'} ) * 200;
+$cpu->{'utilization'} = ( $cpu->{'use'} / $cpu->{'total'} ) * 100;
 
 Util::disconnect();
 
