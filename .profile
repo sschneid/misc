@@ -3,9 +3,13 @@ unset MAILCHECK
 
 set -o vi
 
-export PATH=${PATH}:/sbin:/usr/sbin:/usr/local/bin:${HOME}/bin
-export CVS_RSH='/usr/bin/ssh'
-export CVSROOT=${LOGNAME}@cvs:/cvsroot
+export PATH=${PATH}:/sbin:/usr/sbin:/usr/local/bin:${HOME}/bin:/opt/local/bin:/opt/local/sbin:/usr/local/git/bin
+export MANPATH=/opt/local/share/man:$MANPATH
+export CLICOLOR=1
+export LSCOLORS=ExFxBxDxCxegedabagacad
+export TERM=xterm-color
+
+export ORIGIN=${SSH_CLIENT%% *}
 
 if [ -f /usr/bin/vim ]; then alias vi='vim'; fi
 
@@ -23,23 +27,38 @@ else
     READER='more'
 fi
 
+function profile-deploy() {
+    /usr/bin/ssh "$@" "if [[ ! -e '.ssh' ]]; then mkdir .ssh; fi" ;
+    /usr/bin/scp ~sschneider/.ssh/authorized_keys "$@":.ssh/. >/dev/null;
+    /usr/bin/scp -r ~sschneider/.bashrc ~sschneider/.profile ~sschneider/.screenrc ~sschneider/bin/ "$@":. >/dev/null;
+}
+
+function update-repositories() {
+    for i in $( find . -type d -maxdepth 1 ); do
+        if [ -e $i/.git ]; then
+            echo $i;
+            cd $i; git pull;
+            cd - >/dev/null;
+            echo;
+        fi
+    done
+}
+
+# Git tab-completion
+source ~/bin/git/git-completion.sh
+
 alias more=${READER} less=${READER}
-alias ssh='ssh -X'
+alias ssh='ssh -AX'
 alias ll='ls -al'
+alias sudo='A=`alias` sudo '
 
-if [ -f ~/bin/c-df ]; then
-    if [ `/bin/uname` == 'AIX' ]; then
-        alias df="~/bin/c-df -P"
-    else
-        alias df="~/bin/c-df"
-    fi
-fi
+alias puppetrun='sudo puppet agent -o -v --no-daemonize'
 
-if [ `/bin/uname` == 'AIX' ]; then
-    export PS1="[`echo $LOGNAME`@`/bin/hostname`:"'$PWD'"]\\$ "
-else
-    export PS1='[\u@\h:\w]\\$ '
-fi
+alias lock='/System/Library/CoreServices/Menu\ Extras/User.menu/Contents/Resources/CGSession -suspend'
 
-echo; echo Host: $(/bin/hostname)
+alias mc='ssh -Aqt sschneider@mail2.mercycorps.org ssh -Aqt'
+
+export PS1='[\u@\h:\w$(git branch &>/dev/null; if [ $? -eq 0 ]; then echo "($(git branch | grep '^*' | sed s/\*\ //))"; fi)]\\$ '
+
+echo; echo Host: $( /bin/hostname )
 
