@@ -1,9 +1,0 @@
-# Create a [1280x1024] screen full of terminal panes
-
-# Left pane
-/usr/bin/gnome-terminal --geometry=89x10+1282+3 &
-/usr/bin/gnome-terminal --geometry=89x52+1282+186 &
-
-# Right pane
-/usr/bin/gnome-terminal --geometry=84x18+1938+3 &
-/usr/bin/gnome-terminal --geometry=84x44+1938+306 &
