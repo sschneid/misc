@@ -47,6 +47,9 @@ function update-repositories() {
 # Git tab-completion
 source ~/bin/git/git-completion.sh
 
+# SSH tab-completion
+complete -W "$( echo $( grep '^ssh ' .bash_history | sort -u | sed 's/^ssh //' ) )" ssh
+
 alias more=${READER} less=${READER}
 alias ssh='ssh -AX'
 alias ll='ls -al'
