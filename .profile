@@ -48,7 +48,9 @@ function update-repositories() {
 source ~/bin/git/git-completion.sh
 
 # SSH tab-completion
-complete -W "$( echo $( grep '^ssh ' .bash_history | sort -u | sed 's/^ssh //' ) )" ssh profile-deploy
+if [ -e .bash_history ]; then
+    complete -W "$( echo $( grep '^ssh ' .bash_history | sort -u | sed 's/^ssh //' ) )" ssh profile-deploy
+fi
 
 alias more=${READER} less=${READER}
 alias ssh='ssh -AX'
