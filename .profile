@@ -8,6 +8,7 @@ export MANPATH=/opt/local/share/man:$MANPATH
 export CLICOLOR=1
 export LSCOLORS=ExFxBxDxCxegedabagacad
 export TERM=xterm-color
+export COPYFILE_DISABLE=true
 
 export ORIGIN=${SSH_CLIENT%% *}
 
