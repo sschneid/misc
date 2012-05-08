@@ -57,6 +57,7 @@ alias more=${READER} less=${READER}
 alias ssh='ssh -AX'
 alias ll='ls -al'
 alias sudo='A=`alias` sudo '
+alias rscp='rsync -av --delete --stats -e ssh'
 
 alias puppetrun='sudo puppet agent -o -v --no-daemonize'
 
