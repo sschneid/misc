@@ -46,7 +46,9 @@ function update-repositories() {
 }
 
 # Git tab-completion
-source ~/bin/git/git-completion.sh
+if [ -e ~/bin/git/git-completion.sh ]; then
+	source ~/bin/git/git-completion.sh
+fi
 
 # SSH tab-completion
 if [ -e .bash_history ]; then
