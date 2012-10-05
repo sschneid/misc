@@ -28,12 +28,14 @@ else
     READER='more'
 fi
 
+# Profile deployment
 function profile-deploy() {
     /usr/bin/ssh "$@" "if [[ ! -e '.ssh' ]]; then mkdir .ssh; fi" ;
     /usr/bin/scp ~sschneider/.ssh/authorized_keys "$@":.ssh/. >/dev/null;
     /usr/bin/scp -r ~sschneider/.bashrc ~sschneider/.profile ~sschneider/.screenrc ~sschneider/bin/ "$@":. >/dev/null;
 }
 
+# Git repo uber-update
 function update-repositories() {
     for i in $( find . -type d -maxdepth 1 ); do
         if [ -e $i/.git ]; then
@@ -51,8 +53,13 @@ if [ -e ~/bin/git/git-completion.sh ]; then
 fi
 
 # SSH tab-completion
-if [ -e .bash_history ]; then
-    complete -W "$( echo $( grep '^ssh ' .bash_history | sort -u | sed 's/^ssh //' ) )" ssh profile-deploy
+if [ -e ~/.bash_history ]; then
+    complete -W "$( echo $( grep '^ssh ' ~/.bash_history | sort -u | sed 's/^ssh //' ) )" ssh profile-deploy
+fi
+
+# ec2 Credentials
+if [ -e ~/.ec2/.setup ]; then
+    source ~/.ec2/.setup
 fi
 
 alias more=${READER} less=${READER}
@@ -61,13 +68,9 @@ alias ll='ls -al'
 alias sudo='A=`alias` sudo '
 alias rscp='rsync -av --delete --stats -e ssh'
 
-alias puppetrun='sudo puppet agent -o -v --no-daemonize'
-
 alias lock='/System/Library/CoreServices/Menu\ Extras/User.menu/Contents/Resources/CGSession -suspend'
 
-alias mc='ssh -Aqt sschneider@mail2.mercycorps.org ssh -Aqt'
-
-export PS1='[\u@\h:\w$(git branch &>/dev/null; if [ $? -eq 0 ]; then echo "($(git branch | grep '^*' | sed s/\*\ //))"; fi)]\\$ '
+export PS1='\033[01;32m\]\u\033[00m\] @\033[01;33m\]\h\033[00m\] :\033[01;36m\]\w$(git branch &>/dev/null; if [ $? -eq 0 ]; then echo " \033[00m\]($(git branch | grep '^*' | sed s/\*\ //))"; fi)\033[00m\] \$ '
 
 echo; echo Host: $( /bin/hostname )
 
