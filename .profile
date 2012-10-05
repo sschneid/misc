@@ -70,7 +70,7 @@ alias rscp='rsync -av --delete --stats -e ssh'
 
 alias lock='/System/Library/CoreServices/Menu\ Extras/User.menu/Contents/Resources/CGSession -suspend'
 
-export PS1='\033[01;32m\]\u\033[00m\] @\033[01;33m\]\h\033[00m\] :\033[01;36m\]\w$(git branch &>/dev/null; if [ $? -eq 0 ]; then echo " \033[00m\]($(git branch | grep '^*' | sed s/\*\ //))"; fi)\033[00m\] \$ '
+export PS1='\[\e[32m\]\u\[\e[00m\] @\[\e[33m\]\h\[\e[00m\] :\[\e[36m\]\w$(git branch &>/dev/null; if [ $? -eq 0 ]; then echo " \[\e[00m\]($(git branch | grep '^*' | sed s/\*\ //))"; fi)\[\e[00m\] \$ '
 
 echo; echo Host: $( /bin/hostname )
 
