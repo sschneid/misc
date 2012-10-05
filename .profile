@@ -39,7 +39,7 @@ function profile-deploy() {
 function update-repositories() {
     for i in $( find . -type d -maxdepth 1 ); do
         if [ -e $i/.git ]; then
-            echo $i;
+            echo $'\E[01;35m'$i$'\E[00m';
             cd $i; git pull;
             cd - >/dev/null;
             echo;
