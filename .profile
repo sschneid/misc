@@ -52,6 +52,11 @@ if [ -e ~/bin/git/git-completion.sh ]; then
 	source ~/bin/git/git-completion.sh
 fi
 
+# Highlighter grep
+function highlight() {
+    grep --color -E "$@|$"
+}
+
 # SSH tab-completion
 if [ -e ~/.bash_history ]; then
     complete -W "$( echo $( grep '^ssh ' ~/.bash_history | sort -u | sed 's/^ssh //' ) )" ssh profile-deploy
