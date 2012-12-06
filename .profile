@@ -28,11 +28,18 @@ else
     READER='more'
 fi
 
+# OS-specific stuff
+case `uname` in
+  SunOS)
+    export PATH=${PATH}:/opt/csw/bin
+    export TERM=xterm
+esac
+
 # Profile deployment
 function profile-deploy() {
     /usr/bin/ssh "$@" "if [[ ! -e '.ssh' ]]; then mkdir .ssh; fi" ;
-    /usr/bin/scp ~sschneider/.ssh/authorized_keys "$@":.ssh/. >/dev/null;
-    /usr/bin/scp -r ~sschneider/.bashrc ~sschneider/.profile ~sschneider/.screenrc ~sschneider/bin/ "$@":. >/dev/null;
+    /usr/bin/scp -r ~sschneider/.ssh/ "$@":. >/dev/null;
+    /usr/bin/scp -r ~sschneider/.bashrc ~sschneider/.profile ~sschneider/.screenrc ~sschneider/.vim ~sschneider/.vimrc ~sschneider/bin/ "$@":. >/dev/null;
 }
 
 # Git repo uber-update
