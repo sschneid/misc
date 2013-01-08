@@ -3,7 +3,7 @@ unset MAILCHECK
 
 set -o vi
 
-export PATH=${PATH}:/sbin:/usr/sbin:/usr/local/bin:${HOME}/bin:/opt/local/bin:/opt/local/sbin:/usr/local/git/bin
+export PATH=${HOME}/bin:${PATH}:/sbin:/usr/sbin:/usr/local/bin:/opt/local/bin:/opt/local/sbin:/usr/local/git/bin
 export MANPATH=/opt/local/share/man:$MANPATH
 export CLICOLOR=1
 export LSCOLORS=ExFxBxDxCxegedabagacad
