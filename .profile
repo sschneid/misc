@@ -77,7 +77,7 @@ fi
 alias more=${READER} less=${READER}
 alias ssh='ssh -AX'
 alias ll='ls -al'
-alias sudo='A=`alias` sudo '
+alias sudo='A=`alias` sudo env PATH=$PATH'
 alias rscp='rsync -av --delete --stats -e ssh'
 
 alias lock='/System/Library/CoreServices/Menu\ Extras/User.menu/Contents/Resources/CGSession -suspend'
