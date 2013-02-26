@@ -4,7 +4,7 @@ unset MAILCHECK
 set -o vi
 
 export PATH=${HOME}/bin:${PATH}:/sbin:/usr/sbin:/usr/local/bin:/opt/local/bin:/opt/local/sbin:/usr/local/git/bin
-export MANPATH=/opt/local/share/man:$MANPATH
+export MANPATH=/opt/local/share/man:${MANPATH}
 export CLICOLOR=1
 export LSCOLORS=ExFxBxDxCxegedabagacad
 export TERM=xterm-color
@@ -37,17 +37,17 @@ esac
 
 # Profile deployment
 function profile-deploy() {
-    /usr/bin/ssh "$@" "if [[ ! -e '.ssh' ]]; then mkdir .ssh; fi" ;
-    /usr/bin/scp -r $HOME/.ssh/ "$@":. >/dev/null;
-    /usr/bin/scp -r $HOME/.bashrc $HOME/.profile $HOME/.screenrc $HOME/.vim $HOME/.vimrc $HOME/bin/ "$@":. >/dev/null;
+    /usr/bin/ssh "${@}" "if [[ ! -e '.ssh' ]]; then mkdir .ssh; fi" ;
+    /usr/bin/scp -r ${HOME}/.ssh/ "$@":. >/dev/null;
+    /usr/bin/scp -r ${HOME}/.bashrc ${HOME}/.profile ${HOME}/.screenrc ${HOME}/.vim ${HOME}/.vimrc ${HOME}/bin/ "${@}":. >/dev/null;
 }
 
 # Git repo uber-update
 function update-repositories() {
     for i in $( find . -type d -maxdepth 1 ); do
-        if [ -e $i/.git ]; then
-            echo $'\E[01;35m'$i$'\E[00m';
-            cd $i; git pull;
+        if [ -e ${i}/.git ]; then
+            echo $'\E[01;35m'${i}$'\E[00m';
+            cd ${i}; git pull;
             cd - >/dev/null;
             echo;
         fi
@@ -61,7 +61,7 @@ fi
 
 # Highlighter grep
 function highlight() {
-    grep --color -E "$@|$"
+    grep --color -E "${@}|$"
 }
 
 # SSH tab-completion
