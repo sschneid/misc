@@ -74,13 +74,13 @@ if [ -e ~/.ec2/.setup ]; then
     source ~/.ec2/.setup
 fi
 
-alias more=${READER} less=${READER}
-alias ssh='ssh -AX'
+alias clear='clear ; echo'
 alias ll='ls -al'
-alias sudo='A=`alias` sudo env PATH=$PATH'
-alias rscp='rsync -av --delete --stats -e ssh'
-
 alias lock='/System/Library/CoreServices/Menu\ Extras/User.menu/Contents/Resources/CGSession -suspend'
+alias more=${READER} less=${READER}
+alias rscp='rsync -av --delete --stats -e ssh'
+alias ssh='ssh -AX'
+alias sudo='A=`alias` sudo env PATH=$PATH'
 
 export PS1='\[\e[32m\]\u\[\e[00m\] @\[\e[33m\]\h\[\e[00m\] :\[\e[36m\]\w$(git branch &>/dev/null; if [ $? -eq 0 ]; then echo " \[\e[00m\]($(git branch | grep '^*' | sed s/\*\ //))"; fi)\[\e[00m\] \$ '
 
