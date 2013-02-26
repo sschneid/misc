@@ -38,8 +38,8 @@ esac
 # Profile deployment
 function profile-deploy() {
     /usr/bin/ssh "$@" "if [[ ! -e '.ssh' ]]; then mkdir .ssh; fi" ;
-    /usr/bin/scp -r ~sschneider/.ssh/ "$@":. >/dev/null;
-    /usr/bin/scp -r ~sschneider/.bashrc ~sschneider/.profile ~sschneider/.screenrc ~sschneider/.vim ~sschneider/.vimrc ~sschneider/bin/ "$@":. >/dev/null;
+    /usr/bin/scp -r $HOME/.ssh/ "$@":. >/dev/null;
+    /usr/bin/scp -r $HOME/.bashrc $HOME/.profile $HOME/.screenrc $HOME/.vim $HOME/.vimrc $HOME/bin/ "$@":. >/dev/null;
 }
 
 # Git repo uber-update
