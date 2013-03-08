@@ -28,6 +28,11 @@ else
     READER='more'
 fi
 
+# Vimcat
+if [ `which vimcat` ]; then
+  alias cat='vimcat'
+fi
+
 # OS-specific stuff
 case `uname` in
   SunOS)
