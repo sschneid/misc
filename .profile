@@ -30,7 +30,7 @@ fi
 
 # Vimcat
 if [ `which vimcat` ]; then
-  alias cat='vimcat'
+  alias cat='echo ; vimcat'
 fi
 
 # OS-specific stuff
