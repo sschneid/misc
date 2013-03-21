@@ -29,7 +29,7 @@ else
 fi
 
 # Vimcat
-if [ `which vimcat > /dev/null 2>&1` ]; then
+if [ `which vimcat` ]; then
   alias cat='echo ; vimcat'
 fi
 
