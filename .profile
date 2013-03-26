@@ -9,6 +9,7 @@ export CLICOLOR=1
 export LSCOLORS=ExFxBxDxCxegedabagacad
 export TERM=xterm-color
 export COPYFILE_DISABLE=true
+export CLICOLOR_FORCE=yes
 
 export ORIGIN=${SSH_CLIENT%% *}
 
