@@ -1,8 +1,14 @@
 #!/usr/bin/ruby
 
+require 'optparse'
 require 'rubygems'
 require 'rbvmomi'
 require 'yaml'
+
+options = {}
+OptionParser.new do |opts|
+  opts.on('-s', '--short', 'Short') { |v| options[:short] = v }
+end.parse!
 
 unless ARGV[0]
   raise 'Usage: vcloud-list <pools>'
@@ -43,10 +49,14 @@ ARGV.each do |rpool|
     if vm.runtime.bootTime
       running = Time.at((Time.parse(Time.now.to_s) - Time.parse(vm.runtime.bootTime.to_s)).to_i).utc.strftime("%H:%M:%S")
 
-      puts "\n#{vm.name}\n---------------\n"
-      puts "Resource pool:  #{rpool}\n"
-      puts "System uptime:  #{running}\n"
-      puts vm.summary.config.annotation+"\n\n"
+      if options[:short]
+        puts vm.name.ljust(18)+running.ljust(11)+rpool
+      else
+        puts "\n#{vm.name}\n---------------\n"
+        puts "Resource pool:  #{rpool}\n"
+        puts "System uptime:  #{running}\n"
+        puts vm.summary.config.annotation+"\n\n"
+      end
     end
   end
 end
