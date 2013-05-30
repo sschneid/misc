@@ -1,0 +1,54 @@
+#!/usr/bin/ruby
+
+require 'rubygems'
+require 'rbvmomi'
+require 'yaml'
+
+unless ARGV[0]
+  raise 'Usage: vcloud-list <pools>'
+end
+
+fog_file = File.expand_path("~/.fog")
+fog_data = YAML.load_file(fog_file)[:default]
+
+vim = RbVmomi::VIM.connect(
+  :host     => fog_data[:vsphere_server],
+  :user     => fog_data[:vsphere_username],
+  :password => fog_data[:vsphere_password],
+  :ssl      => true,
+  :insecure => true,
+  :rev      => '5.1'
+)
+
+ARGV.each do |rpool|
+  poolname = "delivery/Quality Assurance/#{rpool}/Dynamic"
+  datacenter = vim.serviceInstance.find_datacenter
+  base = datacenter.hostFolder
+  pools = poolname.split('/')
+  pools.each do |pool|
+    case base
+      when RbVmomi::VIM::Folder
+        base = base.childEntity.find { |f| f.name == pool }
+      when RbVmomi::VIM::ClusterComputeResource
+        base = base.resourcePool.resourcePool.find { |f| f.name == pool }
+      when RbVmomi::VIM::ResourcePool
+        base = base.resourcePool.find { |f| f.name == pool }
+      else
+        abort "Unexpected object type encountered (#{base.class}) while finding resource pool"
+    end
+  end
+  base = base.resourcePool unless base.is_a?(RbVmomi::VIM::ResourcePool) and base.respond_to?(:resourcePool)
+
+  base.vm.each do |vm|
+    if vm.runtime.bootTime
+      running = Time.at((Time.parse(Time.now.to_s) - Time.parse(vm.runtime.bootTime.to_s)).to_i).utc.strftime("%H:%M:%S")
+
+      puts "\n#{vm.name}\n---------------\n"
+      puts "Resource pool:  #{rpool}\n"
+      puts "System uptime:  #{running}\n"
+      puts vm.summary.config.annotation+"\n\n"
+    end
+  end
+end
+
+vim.close

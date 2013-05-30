@@ -44,7 +44,7 @@ esac
 # Profile deployment
 function profile-deploy() {
     /usr/bin/ssh "${@}" "if [[ ! -e '.ssh' ]]; then mkdir .ssh; fi" ;
-    /usr/bin/scp -r ${HOME}/.ssh/ "$@":. >/dev/null;
+#   /usr/bin/scp -r ${HOME}/.ssh/*.pub "$@":. >/dev/null;
     /usr/bin/scp -r ${HOME}/.bashrc ${HOME}/.profile ${HOME}/.screenrc ${HOME}/.vim ${HOME}/.vimrc ${HOME}/bin/ "${@}":. >/dev/null;
 }
 
@@ -85,7 +85,7 @@ alias ll='ls -al'
 alias lock='/System/Library/CoreServices/Menu\ Extras/User.menu/Contents/Resources/CGSession -suspend'
 alias more=${READER} less=${READER}
 alias rscp='rsync -av --delete --stats -e ssh'
-alias ssh='ssh -AX'
+alias ssh='ssh -AXt'
 alias sudo='A=`alias` sudo env PATH=$PATH'
 
 export PS1='\[\e[32m\]\u\[\e[00m\] @\[\e[33m\]\h\[\e[00m\] :\[\e[36m\]\w$(git branch &>/dev/null; if [ $? -eq 0 ]; then echo " \[\e[00m\]($(git branch | grep '^*' | sed s/\*\ //))"; fi)\[\e[00m\] \$ '
