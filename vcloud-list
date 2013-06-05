@@ -11,7 +11,9 @@ OptionParser.new do |opts|
 end.parse!
 
 unless ARGV[0]
-  raise 'Usage: vcloud-list <pools>'
+  pools = [ 'Staging', 'Enterprise', 'FOSS', 'Legacy' ]
+else
+  pools = ARGV
 end
 
 fog_file = File.expand_path("~/.fog")
@@ -26,7 +28,7 @@ vim = RbVmomi::VIM.connect(
   :rev      => '5.1'
 )
 
-ARGV.each do |rpool|
+pools.each do |rpool|
   poolname = "delivery/Quality Assurance/#{rpool}/Dynamic"
   datacenter = vim.serviceInstance.find_datacenter
   base = datacenter.hostFolder
@@ -47,14 +49,15 @@ ARGV.each do |rpool|
 
   base.vm.each do |vm|
     if vm.runtime.bootTime
-      running = Time.at((Time.parse(Time.now.to_s) - Time.parse(vm.runtime.bootTime.to_s)).to_i).utc.strftime("%H:%M:%S")
+      running = (((Time.now - vm.runtime.bootTime)/60)/60).to_s[/^\d+\.\d{1}/].to_f
 
       if options[:short]
-        puts vm.name.ljust(18)+running.ljust(11)+rpool
+        template = vm.summary.config.annotation.scan(/\w+\-\w+\-\w+/)[0].to_s
+        puts vm.name.ljust(18)+running.to_s.ljust(7)+rpool+'   '+template
       else
         puts "\n#{vm.name}\n---------------\n"
         puts "Resource pool:  #{rpool}\n"
-        puts "System uptime:  #{running}\n"
+        puts "System uptime:  #{running} hours\n"
         puts vm.summary.config.annotation+"\n\n"
       end
     end
