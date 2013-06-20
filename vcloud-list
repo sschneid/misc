@@ -28,6 +28,8 @@ vim = RbVmomi::VIM.connect(
   :rev      => '5.1'
 )
 
+total = 0
+
 pools.each do |rpool|
   poolname = "delivery/Quality Assurance/#{rpool}/Dynamic"
   datacenter = vim.serviceInstance.find_datacenter
@@ -51,9 +53,11 @@ pools.each do |rpool|
     if vm.runtime.bootTime
       running = (((Time.now - vm.runtime.bootTime)/60)/60).to_s[/^\d+\.\d{1}/].to_f
 
+      total = total + 1
+
       if options[:short]
         template = vm.summary.config.annotation.scan(/\w+\-\w+\-\w+/)[0].to_s
-        puts vm.name.ljust(18)+running.to_s.ljust(7)+rpool+'   '+template
+        puts vm.name.ljust(18)+running.to_s.ljust(6)+rpool+'   '+template
       else
         puts "\n#{vm.name}\n---------------\n"
         puts "Resource pool:  #{rpool}\n"
@@ -65,3 +69,5 @@ pools.each do |rpool|
 end
 
 vim.close
+
+puts "\nFound #{total} vCloud VMs.\n"
